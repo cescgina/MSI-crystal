@@ -1,14 +1,13 @@
 import htmd as ht
 import numpy as np
 
-filename = "1dxr.pdb"
+filename = "3v03.pdb"
 f = open(filename, "r")
 line = f.readline()
 while(not line.startswith("EXPDTA")):
     line = f.readline()
 if (line.rfind("CRYSTAL") == -1) and (line.rfind("DIFFRACTION") == -1):
-    raise(ValueError("The input pdb does not correspond to a crystallographic "
-                     "structure"))
+    raise(ValueError("The input pdb does not correspond to a crystallographic structure"))
 # find start crystal structures
 while(line.rfind("REMARK 290       1555") == -1):
     line = f.readline()
@@ -43,6 +42,15 @@ print(rot_mat)
 print(trans_v)
 
 mol = ht.Molecule(filename)
+
+center = [0,0,0]
+mol2 = ht.Molecule()
+for i in range(len(trans_v)):
+  molecule = mol.copy()
+  molecule.rotateBy(rot_mat[i], center)
+  molecule.moveBy(trans_v[i])
+  mol2.append(molecule)
+mol2.view()
 
 # http://deposit.rcsb.org/adit/docs/pdb_atom_format.html
 # http://pdb101.rcsb.org/learn/guide-to-understanding-pdb-data/introduction
