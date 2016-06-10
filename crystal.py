@@ -25,6 +25,7 @@ def draw_cell(axis, group, viewer):
     top_lo_r = axis.sum(axis=0)
     points = np.vstack((baseorigin, base_lo_l, base_up_r, base_lo_r))
     points = np.vstack((points, top_origin, top_lo_l, top_up_r, top_lo_r))
+    size = np.array([base_lo_l[0], base_up_r[1], top_origin[2]])
     if group[0] == 'H':
         # Lattice is hexagonal, can be constructed by applying two 120º
         # rotations over the z axis
@@ -36,15 +37,34 @@ def draw_cell(axis, group, viewer):
         rotpoints2 = np.dot(rot_mat, rotpoints1)
         points = np.vstack((points, rotpoints1.transpose(),
                            rotpoints2.transpose()))
-        lines_draw = [[1, 3], [1, 5], [2, 3], [2, 6], [3, 7], [6, 7]]
+        lines_draw = np.array([[1, 3], [1, 5], [2, 3], [2, 6], [3, 7], [5, 7],
+                               [6, 7]])
+        lines_draw = np.vstack((lines_draw, lines_draw+8, lines_draw+16))
     else:
         lines_draw = [[0, 1], [0, 2], [0, 4], [1, 3], [1, 5], [2, 3], [2, 6],
                       [3, 7], [4, 5], [4, 6], [5, 7], [6, 7]]
     for row in lines_draw:
         viewer.send('draw line {{{0} {1} {2}}} {{{3} {4} {5}}}'.format(
             *(tuple(points[row[0]]) + tuple(points[row[1]]))))
+    return size
+
+
+def is_outside(mol, size):
+    center = np.mean(mol.get('coords'), axis=0)
+    loc = center > size
+    return loc.any() or len(np.where(center < 0)[0]) > 0
+
+
+def move_inside(mol, size):
+    center = np.mean(mol.get('coords'), axis=0)
+    print(center)
+    center = np.mod(center, size)
+    print(center)
+    mol.center(loc=center)
+    return mol
 
 filename = "3v03.pdb"
+# filename = "1rxb.pdb"
 f = open(filename, "r")
 line = f.readline()
 while(not line.startswith("EXPDTA")):
@@ -123,13 +143,14 @@ origin = np.array([0, 0, 0])
 center = np.add(origin, 0.5*asum)
 mol2 = ht.Molecule()
 viewer = ht.vmdviewer.VMD()
+size = draw_cell(axes, group, viewer)
 for i in range(len(trans_v)):
     molecule = mol.copy()
     molecule.rotateBy(rot_mat[i])
     molecule.moveBy(trans_v[i])
-    molecule.view(style='New Cartoon', viewerhandle=viewer)
+    if is_outside(molecule, size):
+        print(i)
+        molecule = move_inside(molecule, size)
+    # molecule.view(style='New Cartoon', viewerhandle=viewer)
     mol2.append(molecule)
-# mol2.view()
-draw_cell(axes, group, viewer)
-# http://deposit.rcsb.org/adit/docs/pdb_atom_format.html
-# http://pdb101.rcsb.org/learn/guide-to-understanding-pdb-data/introduction
+mol2.view(style='New Cartoon', viewerhandle=viewer)
