@@ -11,9 +11,12 @@ class MoleculeCopy():
     def __init__(self, mol):
         self.mol = copy.deepcopy(mol)
 
-    def is_outside(self, size):
+    def is_outside(self, size, gamma):
         center = np.mean(self.mol.get('coords'), axis=0)
+        change = center[1]/np.tan(gamma)
         cellloc = center / size
+        cellloc[0] = (center[0] - change) / size[0]
+        print(center[0],center[0]-change)
         cellloc = np.floor(cellloc)
         self.cellloc = cellloc
         self.center = center
@@ -158,7 +161,7 @@ class UnitCell():
             molecule = MoleculeCopy(self.mol)
             molecule.mol.rotateBy(self.rot_mat[i])
             molecule.mol.moveBy(self.trans_v[i])
-            if molecule.is_outside(self.size):
+            if molecule.is_outside(self.size,self.gamma):
                 molecule.move_inside(self.axes)
             self.molunit.append(molecule.mol)
 
@@ -166,6 +169,6 @@ class UnitCell():
         self.molunit.view(style='NewCartoon', viewerhandle=self.viewer)
 
 if __name__ == "__main__":
-    filename = "3v03.pdb"
+    filename = "../1bm1.pdb"
     unitcell = UnitCell(filename)
     unitcell.view_unit_cell()
