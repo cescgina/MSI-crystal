@@ -51,16 +51,19 @@ def draw_cell(axis, group, viewer):
 
 def is_outside(mol, size):
     center = np.mean(mol.get('coords'), axis=0)
-    loc = center > size
-    return loc.any() or len(np.where(center < 0)[0]) > 0
+    cellloc = center / size
+    cellloc = np.floor(cellloc)
+    return np.sum(np.abs(cellloc)) > 0
 
 
-def move_inside(mol, size):
+def move_inside(mol, size, axes):
     center = np.mean(mol.get('coords'), axis=0)
-    print(center)
-    center = np.mod(center, size)
-    print(center)
-    mol.center(loc=center)
+    cellloc = center / size
+    cellloc = np.floor(cellloc)
+    neworigin = np.multiply(axes.transpose(), cellloc).transpose()
+    neworigin = np.sum(neworigin, axis=0)
+    newcenter = center-neworigin
+    mol.center(loc=newcenter)
     return mol
 
 filename = "3v03.pdb"
@@ -135,12 +138,6 @@ caux = (np.cos(alpha)-np.cos(beta)*np.cos(gamma))/np.sin(gamma)
 axes = np.array([[a, 0, 0], [b*np.cos(gamma), b*np.sin(gamma), 0],
                 [c*np.cos(beta), c * caux,
                  c * np.sqrt(1-np.cos(beta)**2-caux**2)]])
-c2r = axes.transpose()
-r2c = np.linalg.inv(c2r)
-asum = np.add(axes[0], axes[1])
-np.add(asum, axes[2], asum)
-origin = np.array([0, 0, 0])
-center = np.add(origin, 0.5*asum)
 mol2 = ht.Molecule()
 viewer = ht.vmdviewer.VMD()
 size = draw_cell(axes, group, viewer)
@@ -149,8 +146,6 @@ for i in range(len(trans_v)):
     molecule.rotateBy(rot_mat[i])
     molecule.moveBy(trans_v[i])
     if is_outside(molecule, size):
-        print(i)
-        molecule = move_inside(molecule, size)
-    # molecule.view(style='New Cartoon', viewerhandle=viewer)
+        molecule = move_inside(molecule, size, axes)
     mol2.append(molecule)
-mol2.view(style='New Cartoon', viewerhandle=viewer)
+mol2.view(style='NewCartoon', viewerhandle=viewer)
