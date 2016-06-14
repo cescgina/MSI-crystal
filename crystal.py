@@ -1,31 +1,29 @@
 import htmd as ht
 import numpy as np
 import copy
-# import matplotlib.pyplot as plt
-
-# from mpl_toolkits.mplot3d import Axes3D
-
 
 class MoleculeCopy():
 
     def __init__(self, mol):
         self.mol = copy.deepcopy(mol)
 
-    def is_outside(self, size, gamma):
-        center = np.mean(self.mol.get('coords'), axis=0)
-        change = center[1]/np.tan(gamma)
+    def is_outside(self, size, beta, gamma):
+        '''Determine unit cell where the crystalized molecule is located'''
+        center = np.mean(self.mol.get('coords'), axis=0) # get center of crystal copy
+        change_min = center[2]/np.tan(beta) + center[1]/np.tan(gamma) # get min_value x unit cell at given y,z
         cellloc = center / size
-        cellloc[0] = (center[0] - change) / size[0]
-        print(center[0],center[0]-change)
-        cellloc = np.floor(cellloc)
+        cellloc[0] = (center[0] - change_min) / size[0] # correct x axis boundaries according to angles
+        cellloc = np.floor(cellloc) # integer from division = unit cell identifier
+        # set as instance variables
         self.cellloc = cellloc
         self.center = center
         self.box_size = size
-        return np.sum(np.abs(cellloc)) > 0
+        return np.sum(np.abs(cellloc)) > 0 # true if cellloc != [0,0,0] (unit cell where we will pack the copies)
 
     def move_inside(self, axes):
+        '''Place outsider copies inside the target unit cell'''
         neworigin = np.multiply(axes.transpose(), self.cellloc).transpose()
-        neworigin = np.sum(neworigin, axis=0)
+        neworigin = np.sum(neworigin, axis=0) # I DO NOT UNDERSTAND!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         newcenter = self.center-neworigin
         self.mol.center(loc=newcenter)
 
@@ -33,6 +31,7 @@ class MoleculeCopy():
 class UnitCell():
 
     def __init__(self, pdbfile):
+        '''Define attributes of unit cell'''
         self.mol = ht.Molecule(pdbfile)
         self.readPDB(pdbfile)
         caux = (np.cos(self.alpha)-np.cos(self.beta)*np.cos(self.gamma)) / \
@@ -49,11 +48,12 @@ class UnitCell():
         self.draw_copies()
 
     def readPDB(self, pdbfile):
-
+        '''Parse PDB and get information on crystal structure'''
         f = open(filename, "r")
         line = f.readline()
         while(not line.startswith("EXPDTA")):
             line = f.readline()
+        # verify if the PDB has crystal structure
         if (line.rfind("CRYSTAL") == -1) and (line.rfind("DIFFRACTION") == -1):
             raise(ValueError("The input pdb does not correspond to a "
                              "crystallographic structure"))
@@ -65,13 +65,13 @@ class UnitCell():
         while(len(line.split()) > 2):
             nstr += 1
             line = f.readline()
-        rot_mat = np.zeros((nstr, 3, 3))  # generate empty coord matrix
-        trans_v = np.zeros((nstr, 3))
+        rot_mat = np.zeros((nstr, 3, 3))  # generate empty rotation matrices
+        trans_v = np.zeros((nstr, 3)) # generate empty translation vectors
 
         while(line.rfind("SMTRY1") == -1):
             line = f.readline()
 
-        # fill rot_mat and trans_v
+        # fill rotation matrices and translation vectors
         n = 0
         dim = 0
         while(len(line.split()) > 2):
@@ -86,12 +86,16 @@ class UnitCell():
                 dim += 1
         self.rot_mat = rot_mat
         self.trans_v = trans_v
+        
         while(not line.startswith("CRYST1")):
             line = f.readline()
+           
+        # get axes and angles information
         (a, b, c, alpha, beta, gamma) = line.split()[1:7]
         self.group = line.split()[7:-2]
         i = 0
-        orig_mat = np.zeros((3, 3))
+        # NOT USED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        orig_mat = np.zeros((3, 3))	 
         T = np.zeros(3)
         scale_mat = np.zeros((3, 3))
         S = np.zeros(3)
@@ -114,6 +118,7 @@ class UnitCell():
         self.scale_mat = scale_mat
         self.T = T
         self.S = S
+        ###############################################################
         self.alpha = np.deg2rad(float(alpha))
         self.beta = np.deg2rad(float(beta))
         self.gamma = np.deg2rad(float(gamma))
@@ -122,7 +127,8 @@ class UnitCell():
         self.c = float(c)
 
     def draw_cell(self):
-
+        '''Draw unit cell in VMD'''
+        # define lines to be drawn from vertices
         baseorigin = np.array([0, 0, 0])
         base_lo_l = self.axes[0]
         base_up_r = self.axes[1]
@@ -157,18 +163,22 @@ class UnitCell():
         self.size = size
 
     def draw_copies(self):
+        '''Generate crystal copies and place them in target unit cell'''
         for i in range(self.num_copies):
             molecule = MoleculeCopy(self.mol)
+            # apply SMTRY operations
             molecule.mol.rotateBy(self.rot_mat[i])
             molecule.mol.moveBy(self.trans_v[i])
-            if molecule.is_outside(self.size,self.gamma):
+           # pack copies to target unit cell
+            if molecule.is_outside(self.size,self.beta,self.gamma):
                 molecule.move_inside(self.axes)
             self.molunit.append(molecule.mol)
 
     def view_unit_cell(self):
+        '''Draw crystal copies from molecule in target unit cell using VMD'''
         self.molunit.view(style='NewCartoon', viewerhandle=self.viewer)
 
 if __name__ == "__main__":
-    filename = "../1bm1.pdb"
+    filename = "3v03.pdb"
     unitcell = UnitCell(filename)
     unitcell.view_unit_cell()
