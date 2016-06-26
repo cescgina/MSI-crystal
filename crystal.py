@@ -6,7 +6,6 @@ import copy
 
 class PDBError(Exception):
     '''Child class of Exception to handle errors.
-    
     Used to warn of non-crystallographic PDB file.'''
     def __call__(self, *args):
         return self.__class__(*(self.args + args))
@@ -14,7 +13,7 @@ class PDBError(Exception):
         return ': '.join(self.args)
 
 class MoleculeCopy():
-
+    '''Class which places each crystal copy of the molecule in the appropiate position.'''
     def __init__(self, mol):
         '''Initialization of MoleculeCopy object.
         Takes as argument a HTMD molecule object.'''
@@ -27,10 +26,8 @@ class MoleculeCopy():
 
     def get_cellloc(self, angles, box_size):
         '''Computes the Unit Cell's location of the molecule object.
-
         Takes as argument the Euler angles of the Unit Cell's sides and performs
         a small correction to account for oblique sides.
-
         Allows to correct x position dependent on y and z.'''
         change = np.zeros(3)
         change[0] = self.center[1]/np.tan(angles[2]) + self.center[2]/np.tan(angles[1])  # get min_value x unit cell at given y,z
@@ -38,58 +35,49 @@ class MoleculeCopy():
 
     def is_outside(self, size, angles):
         '''Checks if a molecule object is inside the defined unit cell.
-
         Takes as arguments the size vector [numpy array with 3 coordinates]
         and a vector [numpy array with three floats] with the Euler angles of 
         the Unit Cell.
-
         Modifies the attribute:
-
                -> center: mean center of the molecule object.
         
         Creates the attributes:
-
                -> cellloc: location of the molecule object within the Unit Cell.
-
         Returns True if the molecule object is outside the Unit Cell, else
         returns False.'''
         self.center = self.get_mean_center()
-        self.cellloc = self.get_cellloc(angles, size)   # integer from division = unit cell identifier
-        return np.sum(np.abs(self.cellloc)) > 0         # integer from division = unit cell identifier
+        self.cellloc = self.get_cellloc(angles, size)   # integer from division for each axis = unit cell identifier
+        return np.sum(np.abs(self.cellloc)) > 0      
 
     def move_inside(self, axes):
         '''Translates an HTMD molecule object inside another Unit Cell.
-
         Takes as argument the vectors defining the Unit Cell the molecule
         object is currently in and translates it inside another Unit Cell.
         '''
-        neworigin = np.multiply(axes.transpose(), self.cellloc).transpose()
+        neworigin = np.multiply(axes.transpose(), self.cellloc).transpose() # computes translation to be applied to copy 
         neworigin = np.sum(neworigin, axis=0)
-        newcenter = self.center-neworigin             #
-        self.mol.center(loc=newcenter)
+        newcenter = self.center-neworigin  # computes difference between copy center and origin of its unit cell
+        self.mol.center(loc=newcenter) # places copy in the target unit cell (at an equivalent position to that of original unit cell)
 
     def place_crystal(self, size, angles, axes):
         '''Places MoleculeCopy object inside crystal.
-
         Uses methods 'is_outside' and 'move_inside'.'''
         if self.is_outside(size,angles):
            self.move_inside(axes)
 
 class UnitCell():
-
+    '''Class containing methods to read crystal information from PDB,
+     generate outline of unit cell and draw crystal copies.'''
     def __init__(self, pdbfile):
         '''Initialization of the UnitCell instance.
         It takes as argument a pdb file and stores the
         useful values to build a Unit Cell.
-
         Its attributes upon initialization are the following:
-
            -> mol: htmd molecule object of the original PDB.
            -> axes: axes of the Unit Cell.
            -> size: furthest coordinates from the origin of the Unit Cell.
            -> molunit: empty molecule object where the Unit Cell will be stored.
            -> viewer: HTMD viewer used.
-
         Furthermore, it calls the method 'readPDB' upon initializing, also 
         acquiring the attributes defined there.'''
         self.mol = ht.Molecule(pdbfile)
@@ -152,9 +140,11 @@ class UnitCell():
             line = f.readline()
         (a, b, c, alpha, beta, gamma) = line.split()[1:7]
         self.group = line.split()[7:-2]
+        #angles to radians
         self.alpha = np.deg2rad(float(alpha))
         self.beta = np.deg2rad(float(beta))
         self.gamma = np.deg2rad(float(gamma))
+        # axes to float numbers
         self.a = float(a)
         self.b = float(b)
         self.c = float(c)
@@ -165,10 +155,8 @@ class UnitCell():
 
     def draw_cell(self, draw_hexagon):
         '''Draws lines in the viewer that represent Unit Cell.
-
         It takes the draw_hexagon argument, a boolean that if set to true
         will draw the Unit Cell with hexagonal boundaries if it is a hexagon.
-
         If set to False or not a hexagonal Unit Cell, it will draw a rectangle
         or trapezoid. '''
         baseorigin = np.array([0, 0, 0])
@@ -206,7 +194,6 @@ class UnitCell():
         '''Method that draws the copies within the Unit Cell stored in molunit
         as a hexagon by performing three consecutive rotations on the Z-axis with 
         an angle of 120 degrees and places them in a new Molecule Object.
-
         Creates a new attribute, hexagonal_molunit, which stores the created Unit Cell
         HTMD molecule object.'''
         i = 0
@@ -224,7 +211,6 @@ class UnitCell():
         '''Method which controls the creation of HTMD molecule object copies.
         Relies on MoleculeCopy's own methods to properly place the copies and
         form the complete Unit Cell, appending them to 'molunit'.
-
         It takes as argument the boolean variable 'draw_all'; if set to True,
         when the Unit Cell is hexagonal, it creates a new attribute,
         'hexagonal_molunit' and calls the method 'build_hexagon'.'''
@@ -244,10 +230,8 @@ class UnitCell():
     def view_unit_cell(self, style_display):
         '''Method which displays the Unit Cell's molecule object in the viewer
         defined at the instace's creation.
-
         It takes as argument 'style_display', which is the display style of the
         molecule in the viewer.
-
         If the hexagonal_molunit attribute exists, it displays it instead of the
         regular 'molunit'.'''
         if hasattr(self, 'hexagonal_molunit'):
@@ -257,12 +241,10 @@ class UnitCell():
 
 if __name__ == "__main__":
     ###---VARIABLE DEFINITION---###
-    filename = "./1joy.pdb"
+    filename = "./3v03.pdb"
     display_type = 'NewCartoon'
-    draw_crystal_type = False
-    full_build = False
-    # draw_crystal_type -> # This variable determines whether a hexagonal crystal will be drawn as hexagonal or not.
-    # full_build -> This variable determines whether, for a hexagonal crystal, the three different crystal pieces will be rotated.
+    draw_crystal_type = False # This variable determines whether an hexagonal crystal will be drawn as hexagonal or not.
+    full_build = False # This variable determines whether, for an hexagonal crystal, the three different crystal pieces will be rotated.
     
     ###---MAIN PROCESS---###
 
@@ -273,3 +255,4 @@ if __name__ == "__main__":
     unitcell.draw_cell(draw_crystal_type)
     unitcell.draw_copies(full_build)
     unitcell.view_unit_cell(display_type)
+
